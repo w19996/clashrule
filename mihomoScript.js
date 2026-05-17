@@ -1,6 +1,6 @@
 // --- 静态配置区域 ---
 
-// 脚本链接：https://raw.githubusercontent.com/w19996/clashrule/refs/heads/main/mihomoScript.js
+// 脚本链接：https://raw.githubusercontent.com/AIsouler/MyClash/refs/heads/main/Script/mihomoScript.js
 
 /**
  * 整个脚本的总开关
@@ -594,6 +594,18 @@ function createRegionGroup(name, icon, proxies) {
   ];
 }
 
+function getUniqueProxyName(name, usedNames) {
+  let uniqueName = `${name}-节点`;
+  let index = 2;
+
+  while (usedNames.has(uniqueName)) {
+    uniqueName = `${name}-节点${index}`;
+    index += 1;
+  }
+
+  return uniqueName;
+}
+
 // --- 主入口 ---
 
 function main(config) {
@@ -608,6 +620,36 @@ function main(config) {
 
   // 获取节点列表
   const proxies = config.proxies || [];
+  const enabledDefinitions = regionDefinitions.filter(
+    (r) => regionDefinitionsEnable[r.name] === true,
+  );
+  const reservedGroupNames = new Set([
+    '默认代理',
+    '自动选择',
+    '直连',
+    'GLOBAL',
+    '其他节点',
+    '其他节点-自动选择',
+    '🇨🇳 直连 | IPv4优先',
+    '🇨🇳 直连 | IPv6优先',
+    '🇨🇳 直连 | 双栈',
+    ...enabledDefinitions.flatMap((r) => [r.name, `${r.name}-自动选择`]),
+    ...serviceConfigs
+      .filter((svc) => ruleOptionsEnable[svc.key])
+      .map((svc) => svc.name),
+  ]);
+  const usedProxyNames = new Set();
+
+  for (const proxy of proxies) {
+    if (!proxy.name) continue;
+
+    if (reservedGroupNames.has(proxy.name) || usedProxyNames.has(proxy.name)) {
+      proxy.name = getUniqueProxyName(proxy.name, reservedGroupNames);
+    }
+
+    usedProxyNames.add(proxy.name);
+    reservedGroupNames.add(proxy.name);
+  }
 
   // 验证节点列表是否存在代理节点
   const allDirectOrReject = proxies.every((p) => {
@@ -624,9 +666,6 @@ function main(config) {
   // --- 构建地区组和倍率组 ---
 
   // 节点分类
-  const enabledDefinitions = regionDefinitions.filter(
-    (r) => regionDefinitionsEnable[r.name] === true,
-  );
   const regionGroups = Object.fromEntries(
     enabledDefinitions.map((r) => [r.name, { ...r, proxies: [] }]),
   );
